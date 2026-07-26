@@ -1,0 +1,18 @@
+[project]
+name = "la-palabra-y-el-menoscabo"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "fastapi>=0.140.0",
+    "genanki>=0.13.1",
+    "openpyxl>=3.1.5",
+    "pandas>=3.0.5",
+    "pydantic>=2.13.4",
+    "python-multipart>=0.0.32",
+    "reportlab>=5.0.0",
+    "sqlalchemy>=2.0.51",
+    "uvicorn>=0.51.0",
+]
