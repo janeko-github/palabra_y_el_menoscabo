@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>La Palabra y el Menoscabo</title>
+<style>
+  :root {
+    --bg: #f4f6f8;
+    --card: #ffffff;
+    --primary: #2c3e50;
+    --accent: #e67e22;
+    --text: #333;
+    --border: #ddd;
+    --danger: #c0392b;
+    --success: #27ae60;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  header {
+    background: var(--primary);
+    color: #fff;
+    padding: 1.2rem 2rem;
+    text-align: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  }
+  header h1 { font-size: 1.6rem; letter-spacing: 1px; }
+  .container { max-width: 960px; margin: 0 auto; padding: 1.5rem; }
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center;
+    margin-bottom: 0.8rem;
+  }
+  .toolbar input[type="text"] {
+    flex: 1; min-width: 200px; padding: 0.55rem 0.8rem;
+    border: 1px solid var(--border); border-radius: 6px; font-size: 1rem;
+  }
+  button {
+    cursor: pointer; border: none; border-radius: 6px;
+    padding: 0.55rem 1rem; font-size: 0.95rem; transition: opacity 0.2s;
+  }
+  button:hover { opacity: 0.88; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-sm { padding: 0.35rem 0.7rem; font-size: 0.85rem; }
+
+  .card {
+    background: var(--card); border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    padding: 1.2rem; margin-bottom: 1rem;
+  }
+  .word-title {
+    font-size: 1.25rem; font-weight: 700; color: var(--primary);
+    margin-bottom: 0.4rem; display: flex; justify-content: space-between; align-items: center;
+  }
+  .word-meta { font-size: 0.8rem; color: #888; margin-bottom: 0.6rem; }
+  .tag-list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem; }
+  .tag {
+    background: #eef; color: #2c3e50; padding: 0.2rem 0.5rem;
+    border-radius: 4px; font-size: 0.82rem;
+  }
+  .tag.syn { background: #e8f5e9; color: #2e7d32; }
+  .tag.ant { background: #ffebee; color: #c62828; }
+  .tag.ety { background: #fff3e0; color: #e65100; }
+  .tag.use { background: #e3f2fd; color: #1565c0; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    display: none; justify-content: center; align-items: center;
+    z-index: 1000; padding: 1rem;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--card); border-radius: 10px;
+    width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto;
+    padding: 1.5rem; box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  }
+  .modal h2 { margin-bottom: 1rem; color: var(--primary); }
+  .form-group { margin-bottom: 0.9rem; }
+  .form-group label { display: block; font-weight: 600; margin-bottom: 0.3rem; font-size: 0.9rem; }
+  .form-group input, .form-group textarea {
+    width: 100%; padding: 0.5rem; border: 1px solid var(--border);
+    border-radius: 5px; font-size: 0.95rem; font-family: inherit;
+  }
+  .dynamic-list { display: flex; flex-direction: column; gap: 0.4rem; }
+  .dynamic-row { display: flex; gap: 0.4rem; }
+  .dynamic-row input { flex: 1; }
+  .empty-state { text-align: center; color: #888; padding: 2rem; }
+
+  .export-bar {
+    display: flex; flex-wrap: wrap; gap: 0.5rem;
+    margin-bottom: 1.2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .export-bar button { font-size: 0.85rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📖 La Palabra y el Menoscabo</h1>
+</header>
+
+<div class="container">
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="Buscar palabra…">
+    <button class="btn-primary" onclick="openModal()">➕ Nueva palabra</button>
+    <button class="btn-accent" onclick="loadWords()">🔄 Actualizar</button>
+  </div>
+
+  <!-- Barra de exportación global -->
+  <div class="export-bar">
+    <button class="btn-sm btn-primary" onclick="exportAll('pdf')">📄 Exportar PDF</button>
+    <button class="btn-sm btn-primary" onclick="exportAll('xlsx')">📊 Exportar Excel</button>
+    <button class="btn-sm btn-primary" onclick="exportAll('csv')">📋 Exportar CSV</button>
+    <button class="btn-sm btn-primary" onclick="exportAll('anki')">🧠 Exportar Anki</button>
+  </div>
+
+  <div id="wordList"></div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2 id="modalTitle">Nueva palabra</h2>
+    <form id="wordForm" onsubmit="return false;">
+      <input type="hidden" id="wordId">
+      <div class="form-group">
+        <label>Término</label>
+        <input type="text" id="term" required>
+      </div>
+
+      <div class="form-group">
+        <label>Significados</label>
+        <div class="dynamic-list" id="meaningsList"></div>
+        <button type="button" class="btn-sm btn-success" onclick="addField('meaningsList','meaning')" style="margin-top:0.4rem">+ Añadir significado</button>
+      </div>
+
+      <div class="form-group">
+        <label>Sinónimos</label>
+        <div class="dynamic-list" id="synonymsList"></div>
+        <button type="button" class="btn-sm btn-success" onclick="addField('synonymsList','synonym')" style="margin-top:0.4rem">+ Añadir sinónimo</button>
+      </div>
+
+      <div class="form-group">
+        <label>Antónimos</label>
+        <div class="dynamic-list" id="antonymsList"></div>
+        <button type="button" class="btn-sm btn-success" onclick="addField('antonymsList','antonym')" style="margin-top:0.4rem">+ Añadir antónimo</button>
+      </div>
+      
+      <div class="form-group">
+        <label>Etimología</label>
+        <div class="dynamic-list" id="etymologyList"></div>
+        <button type="button" class="btn-sm btn-success" onclick="addField('etymologyList','etymology')" style="margin-top:0.4rem">+ Añadir etimología</button>
+      </div>      
+      <div class="form-group">
+        <label>Casos de uso</label>
+        <div class="dynamic-list" id="usecasesList"></div>
+        <button type="button" class="btn-sm btn-success" onclick="addField('usecasesList','usecase')" style="margin-top:0.4rem">+ Añadir caso de uso</button>
+      </div>
+
+      <div style="display:flex; gap:0.6rem; justify-content:flex-end; margin-top:1.2rem;">
+        <button type="button" class="btn-danger" onclick="closeModal()">Cancelar</button>
+        <button type="button" class="btn-primary" onclick="saveWord()">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const API = "";
+
+let words = [];
+
+async function loadWords() {
+  const q = document.getElementById("searchInput").value.trim();
+  const url = q ? `${API}/words?q=${encodeURIComponent(q)}` : `${API}/words`;
+  const res = await fetch(url);
+  words = await res.json();
+  renderWords();
+}
+
+function renderWords() {
+  const container = document.getElementById("wordList");
+  if (!words.length) {
+    container.innerHTML = `<div class="empty-state">No hay palabras registradas.</div>`;
+    return;
+  }
+  container.innerHTML = words.map(w => `
+    <div class="card">
+      <div class="word-title">
+        <span>${escapeHtml(w.term)}</span>
+        <div>
+          <button class="btn-sm btn-primary" onclick='editWord(${w.id})'>✏️ Editar</button>
+          <button class="btn-sm btn-danger" onclick='deleteWord(${w.id})'>🗑️ Borrar</button>
+        </div>
+      </div>
+      <div class="word-meta">Creado: ${fmtDate(w.created_at)} · Actualizado: ${fmtDate(w.updated_at)}</div>
+      ${w.meanings.length ? `<div><b>Significados:</b><ul style="margin:0.3rem 0 0 1.2rem;">${w.meanings.map(m=>`<li>${escapeHtml(m.meaning_text)}</li>`).join('')}</ul></div>` : ''}
+      ${w.synonyms.length ? `<div class="tag-list"><b style="margin-right:0.3rem;">Sinónimos:</b>${w.synonyms.map(s=>`<span class="tag syn">${escapeHtml(s.synonym_text)}</span>`).join('')}</div>` : ''}
+      ${w.antonyms.length ? `<div class="tag-list"><b style="margin-right:0.3rem;">Antónimos:</b>${w.antonyms.map(a=>`<span class="tag ant">${escapeHtml(a.antonym_text)}</span>`).join('')}</div>` : ''}
+      ${w.etymologys.length ? `<div class="tag-list"><b style="margin-right:0.3rem;">Etimología:</b>${w.etymologys.map(e=>`<span class="tag ety">${escapeHtml(e.etymology_text)}</span>`).join('')}</div>` : ''}
+      ${w.usecases.length ? `<div class="tag-list"><b style="margin-right:0.3rem;">Casos de uso:</b>${w.usecases.map(u=>`<span class="tag use">${escapeHtml(u.usecase_text)}</span>`).join('')}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function exportAll(fmt) {
+  window.open(`${API}/export/${fmt}`, '_blank');
+}
+
+function escapeHtml(t) {
+  const d = document.createElement('div');
+  d.textContent = t;
+  return d.innerHTML;
+}
+function fmtDate(d) {
+  if(!d) return '-';
+  return new Date(d).toLocaleString('es-ES');
+}
+
+function openModal() {
+  document.getElementById("modalTitle").textContent = "Nueva palabra";
+  document.getElementById("wordId").value = "";
+  document.getElementById("term").value = "";
+  clearDynamicList("meaningsList");
+  clearDynamicList("synonymsList");
+  clearDynamicList("antonymsList");
+  clearDynamicList("etymologyList");
+  clearDynamicList("usecasesList");
+  addField("meaningsList","meaning");
+  document.getElementById("modal").classList.add("active");
+}
+function closeModal() {
+  document.getElementById("modal").classList.remove("active");
+}
+
+function clearDynamicList(id) {
+  document.getElementById(id).innerHTML = "";
+}
+function addField(listId, prefix, value="") {
+  const div = document.createElement("div");
+  div.className = "dynamic-row";
+  div.innerHTML = `<input type="text" class="${prefix}-input" value="${escapeHtml(value)}" placeholder="Escribe aquí…"><button type="button" class="btn-sm btn-danger" onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById(listId).appendChild(div);
+}
+
+async function saveWord() {
+  const id = document.getElementById("wordId").value;
+  const term = document.getElementById("term").value.trim();
+  if (!term) { alert("Escribe un término."); return; }
+
+  const payload = {
+    term,
+    meanings: collectValues("meaning-input").map(t=>({meaning_text:t})),
+    synonyms: collectValues("synonym-input").map(t=>({synonym_text:t})),
+    antonyms: collectValues("antonym-input").map(t=>({antonym_text:t})),
+    etymologys: collectValues("etymology-input").map(t=>({etymology_text:t})),
+    usecases: collectValues("usecase-input").map(t=>({usecase_text:t})),
+  };
+
+  const url = id ? `${API}/words/${id}` : `${API}/words`;
+  const method = id ? "PUT" : "POST";
+
+  const res = await fetch(url, {
+    method,
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) { alert("Error guardando."); return; }
+  closeModal();
+  loadWords();
+}
+
+function collectValues(cls) {
+  return Array.from(document.querySelectorAll(`.${cls}`)).map(i=>i.value.trim()).filter(Boolean);
+}
+
+async function editWord(id) {
+  const w = words.find(x=>x.id===id);
+  if(!w) return;
+  openModal();
+  document.getElementById("modalTitle").textContent = "Editar palabra";
+  document.getElementById("wordId").value = w.id;
+  document.getElementById("term").value = w.term;
+
+  clearDynamicList("meaningsList");
+  clearDynamicList("synonymsList");
+  clearDynamicList("antonymsList");
+  clearDynamicList("etymologyList");
+  clearDynamicList("usecasesList");
+
+  w.meanings.forEach(m=>addField("meaningsList","meaning",m.meaning_text));
+  w.synonyms.forEach(s=>addField("synonymsList","synonym",s.synonym_text));
+  w.antonyms.forEach(a=>addField("antonymsList","antonym",a.antonym_text));
+  w.etymologys.forEach(e=>addField("etymologyList","etymology",e.etymology_text));
+  w.usecases.forEach(u=>addField("usecasesList","usecase",u.usecase_text));
+
+  if(!w.meanings.length) addField("meaningsList","meaning");
+  if(!w.etymologys.length) addField("etymologyList","etymology");
+  if(!w.usecases.length) addField("usecasesList","usecase");
+}
+
+async function deleteWord(id) {
+  if(!confirm("¿Eliminar esta palabra?")) return;
+  await fetch(`${API}/words/${id}`, {method:"DELETE"});
+  loadWords();
+}
+
+document.getElementById("searchInput").addEventListener("input", ()=> loadWords());
+
+loadWords();
+</script>
+</body>
+</html>

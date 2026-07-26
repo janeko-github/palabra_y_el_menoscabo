@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from pydantic import BaseModel, Field
 
-from database import engine, Base, get_db
+from database import engine, Base, get_db, DATABASE
 from models import Word, Meaning, Synonym, Antonym, Etymology,UseCase
 
 
@@ -159,7 +159,7 @@ async def root():
 async def list_words(q: Optional[str] = None, db: AsyncSession = Depends(get_db)):
     stmt = select(Word).order_by(Word.term)
     if q:
-        stmt = stmt.where(Word.term.ilike(f"%{q}%"))
+        stmt = stmt.where(Word.term.ilike(f"%{q}%")).order_by(Word.term)
     result = await db.execute(stmt)
     return result.scalars().all()
 
