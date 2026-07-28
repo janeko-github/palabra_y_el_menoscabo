@@ -18,8 +18,8 @@ if ! python3 -c "import fastapi" &> /dev/null; then
     uv pip3 install -r requirements.txt
 fi
 
+uv run uvicorn main:app --reload 
 
-uv run uvicorn main:app --reload
 
 
 
