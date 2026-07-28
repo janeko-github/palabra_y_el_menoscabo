@@ -11,7 +11,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from pydantic import BaseModel, Field
 
 from database import engine, Base, get_db, DATABASE
@@ -172,7 +172,18 @@ async def get_word(word_id: int, db: AsyncSession = Depends(get_db)):
 
 @app.post("/words", response_model=WordOut, status_code=201)
 async def create_word(data: WordCreate, db: AsyncSession = Depends(get_db)):
-    word = Word(term=data.term)
+    term = data.term.strip()
+
+    existing = await db.execute(
+        select(Word).where(func.lower(Word.term) == term.lower())
+    )
+    if existing.scalars().first():
+        raise HTTPException(
+            status_code=409,
+            detail=f"La palabra '{term}' ya existe."
+        )
+
+    word = Word(term=term)
     db.add(word)
     await db.flush()
 
@@ -198,7 +209,20 @@ async def update_word(word_id: int, data: WordUpdate, db: AsyncSession = Depends
         raise HTTPException(status_code=404, detail="Palabra no encontrada")
 
     if data.term is not None:
-        word.term = data.term
+        new_term = data.term.strip()
+        if new_term.lower() != word.term.lower():
+            existing = await db.execute(
+                select(Word).where(
+                    func.lower(Word.term) == new_term.lower(),
+                    Word.id != word_id
+                )
+            )
+            if existing.scalars().first():
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"La palabra '{new_term}' ya existe."
+                )
+        word.term = new_term
 
     # Reemplazar relaciones si vienen en la petición
     if data.meanings is not None:

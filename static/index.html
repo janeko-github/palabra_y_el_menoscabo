@@ -350,7 +350,15 @@ async function saveWord() {
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify(payload)
   });
-  if (!res.ok) { alert("Error guardando."); return; }
+  if (!res.ok) {
+    let msg = "Error guardando.";
+    try {
+      const err = await res.json();
+      if (err.detail) msg = err.detail;
+    } catch (e) {}
+    alert(msg);
+    return;
+  }
   closeModal();
   loadWords();
 }
