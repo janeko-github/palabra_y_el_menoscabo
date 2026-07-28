@@ -100,6 +100,33 @@
     border-bottom: 1px solid var(--border);
   }
   .export-bar button { font-size: 0.85rem; }
+
+  .letter-bar {
+    display: flex; flex-wrap: wrap; gap: 0.35rem;
+    margin-bottom: 1rem;
+  }
+  .letter-btn {
+    background: #fff; color: var(--primary);
+    border: 1px solid var(--border);
+    width: 2.1rem; height: 2.1rem; padding: 0;
+    border-radius: 6px; font-size: 0.9rem; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .letter-btn:hover { background: #eef2f5; opacity: 1; }
+  .letter-btn.active {
+    background: var(--primary); color: #fff; border-color: var(--primary);
+  }
+  .letter-btn.all-btn { width: auto; padding: 0 0.7rem; }
+
+  .word-title { cursor: pointer; }
+  .word-title .term-text { display: flex; align-items: center; gap: 0.4rem; }
+  .word-title .toggle-arrow { font-size: 0.8rem; color: #999; transition: transform 0.2s; }
+  .card.expanded .toggle-arrow { transform: rotate(90deg); }
+  .word-actions { display: flex; gap: 0.4rem; }
+  .word-details { display: none; margin-top: 0.5rem; }
+  .card.expanded .word-details { display: block; }
+  .card.expanded .word-meta { display: block; }
+  .word-meta { display: none; }
 </style>
 </head>
 <body>
@@ -114,6 +141,9 @@
     <button class="btn-primary" onclick="openModal()">➕ Nueva palabra</button>
     <button class="btn-accent" onclick="loadWords()">🔄 Actualizar</button>
   </div>
+
+  <!-- Barra de filtro alfabético -->
+  <div class="letter-bar" id="letterBar"></div>
 
   <!-- Barra de exportación global -->
   <div class="export-bar">
@@ -176,8 +206,37 @@
 
 <script>
 const API = "";
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
 let words = [];
+let currentLetter = "_";       // "_" = todas
+let expandedIds = new Set();   // ids de fichas desplegadas
+
+function buildLetterBar() {
+  const bar = document.getElementById("letterBar");
+  const allBtn = `<button type="button" class="letter-btn all-btn active" data-letter="_" onclick="filterByLetter('_')">Todas</button>`;
+  const letterBtns = LETTERS.map(l =>
+    `<button type="button" class="letter-btn" data-letter="${l}" onclick="filterByLetter('${l}')">${l}</button>`
+  ).join('');
+  bar.innerHTML = allBtn + letterBtns;
+}
+
+function filterByLetter(letter) {
+  currentLetter = letter;
+  // Al filtrar por letra, la búsqueda de texto se limpia (son excluyentes)
+  document.getElementById("searchInput").value = "";
+  document.querySelectorAll(".letter-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.letter === letter);
+  });
+  loadWords();
+}
+
+function normalizeLetter(str) {
+  if (!str) return "";
+  return str.charAt(0)
+    .toUpperCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // quita acentos (á -> A)
+}
 
 async function loadWords() {
   const q = document.getElementById("searchInput").value.trim();
@@ -187,27 +246,44 @@ async function loadWords() {
   renderWords();
 }
 
+function getVisibleWords() {
+  // Si hay texto en el buscador, esa búsqueda manda y no se aplica el filtro de letra
+  const q = document.getElementById("searchInput").value.trim();
+  if (q) return words;
+  if (currentLetter === "_") return words;
+  return words.filter(w => normalizeLetter(w.term) === currentLetter);
+}
+
+function toggleWord(id) {
+  if (expandedIds.has(id)) expandedIds.delete(id);
+  else expandedIds.add(id);
+  renderWords();
+}
+
 function renderWords() {
   const container = document.getElementById("wordList");
-  if (!words.length) {
+  const visible = getVisibleWords();
+  if (!visible.length) {
     container.innerHTML = `<div class="empty-state">No hay palabras registradas.</div>`;
     return;
   }
-  container.innerHTML = words.map(w => `
-    <div class="card">
-      <div class="word-title">
-        <span>${escapeHtml(w.term)}</span>
-        <div>
-          <button class="btn-sm btn-primary" onclick='editWord(${w.id})'>✏️ Editar</button>
-          <button class="btn-sm btn-danger" onclick='deleteWord(${w.id})'>🗑️ Borrar</button>
+  container.innerHTML = visible.map(w => `
+    <div class="card ${expandedIds.has(w.id) ? 'expanded' : ''}">
+      <div class="word-title" onclick="toggleWord(${w.id})">
+        <span class="term-text"><span class="toggle-arrow">▶</span>${escapeHtml(w.term)}</span>
+        <div class="word-actions">
+          <button class="btn-sm btn-primary" onclick='event.stopPropagation(); editWord(${w.id})'>✏️ Editar</button>
+          <button class="btn-sm btn-danger" onclick='event.stopPropagation(); deleteWord(${w.id})'>🗑️ Borrar</button>
         </div>
       </div>
       <div class="word-meta">Creado: ${fmtDate(w.created_at)} · Actualizado: ${fmtDate(w.updated_at)}</div>
-      ${w.meanings.length ? `<div><b>Significados:</b><ul style="margin:0.3rem 0 0 1.2rem;">${w.meanings.map(m=>`<li>${escapeHtml(m.meaning_text)}</li>`).join('')}</ul></div>` : ''}
-      ${w.synonyms.length ? `<div class="tag-list"><b style="margin-right:0.3rem;">Sinónimos:</b>${w.synonyms.map(s=>`<span class="tag syn">${escapeHtml(s.synonym_text)}</span>`).join('')}</div>` : ''}
-      ${w.antonyms.length ? `<div class="tag-list"><b style="margin-right:0.3rem;">Antónimos:</b>${w.antonyms.map(a=>`<span class="tag ant">${escapeHtml(a.antonym_text)}</span>`).join('')}</div>` : ''}
-      ${w.etymologys.length ? `<div class="tag-list"><b style="margin-right:0.3rem;">Etimología:</b>${w.etymologys.map(e=>`<span class="tag ety">${escapeHtml(e.etymology_text)}</span>`).join('')}</div>` : ''}
-      ${w.usecases.length ? `<div class="tag-list"><b style="margin-right:0.3rem;">Casos de uso:</b>${w.usecases.map(u=>`<span class="tag use">${escapeHtml(u.usecase_text)}</span>`).join('')}</div>` : ''}
+      <div class="word-details">
+        ${w.meanings.length ? `<div><b>Significados:</b><ul style="margin:0.3rem 0 0 1.2rem;">${w.meanings.map(m=>`<li>${escapeHtml(m.meaning_text)}</li>`).join('')}</ul></div>` : ''}
+        ${w.synonyms.length ? `<div class="tag-list"><b style="margin-right:0.3rem;">Sinónimos:</b>${w.synonyms.map(s=>`<span class="tag syn">${escapeHtml(s.synonym_text)}</span>`).join('')}</div>` : ''}
+        ${w.antonyms.length ? `<div class="tag-list"><b style="margin-right:0.3rem;">Antónimos:</b>${w.antonyms.map(a=>`<span class="tag ant">${escapeHtml(a.antonym_text)}</span>`).join('')}</div>` : ''}
+        ${w.etymologys.length ? `<div class="tag-list"><b style="margin-right:0.3rem;">Etimología:</b>${w.etymologys.map(e=>`<span class="tag ety">${escapeHtml(e.etymology_text)}</span>`).join('')}</div>` : ''}
+        ${w.usecases.length ? `<div class="tag-list"><b style="margin-right:0.3rem;">Casos de uso:</b>${w.usecases.map(u=>`<span class="tag use">${escapeHtml(u.usecase_text)}</span>`).join('')}</div>` : ''}
+      </div>
     </div>
   `).join('');
 }
@@ -314,8 +390,15 @@ async function deleteWord(id) {
   loadWords();
 }
 
-document.getElementById("searchInput").addEventListener("input", ()=> loadWords());
+document.getElementById("searchInput").addEventListener("input", () => {
+  currentLetter = "_";
+  document.querySelectorAll(".letter-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.letter === "_");
+  });
+  loadWords();
+});
 
+buildLetterBar();
 loadWords();
 </script>
 </body>
