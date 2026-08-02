@@ -53,4 +53,3 @@ abrir_navegador &
 
 # Arranca el servidor (queda en primer plano, con auto-reload)
 uv run uvicorn main:app --host "${HOST}" --port "${PORT}" --reload
-

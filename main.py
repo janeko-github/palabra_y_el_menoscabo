@@ -1,3 +1,4 @@
+import subprocess
 import io
 import csv
 import os
@@ -18,49 +19,63 @@ from database import engine, Base, get_db, DATABASE
 from models import Word, Meaning, Synonym, Antonym, Etymology,UseCase
 
 
+DBDESTINO = "palabra_y_menoscabo.db"
+REPO_DIR = os.path.dirname(os.path.abspath(__file__))  # directorio de main.py
+
 # ── Lifespan (reemplaza @app.on_event("startup")) ──
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # ── Startup ──
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    print("🟢 App iniciada")
+
     yield
-    # Shutdown (opcional, si necesitas limpiar algo al cerrar)
-    """Hacer backup de la base de datos a GitHub al cerrar"""
+
+    # ── Shutdown: backup a GitHub ──
+    print("🔴 Iniciando shutdown... intentando backup a GitHub")
     try:
         fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         mensaje_commit = f"Backup DB {fecha}"
-        
-        # Verificar que existe el archivo
-        if not os.path.exists(DATABASE):
-            print(f"⚠️  No se encontró {DATABASE}")
-            return
-        
-        # Comandos git
-        comandos = [
-            ["git", "add", DATABASE],
-            ["git", "commit", "-m", mensaje_commit],
-            ["git", "push"]
-        ]
-        
-        for cmd in comandos:
-            resultado = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=True
+
+        ruta_db = os.path.join(REPO_DIR, DBDESTINO)
+        if not os.path.exists(ruta_db):
+            print(f"⚠️  No se encontró {ruta_db}")
+        else:
+            print(f"✅ Se encontró {ruta_db}")
+
+            # 1) add (no suele fallar)
+            subprocess.run(["git", "add", DBDESTINO],
+                           cwd=REPO_DIR, capture_output=True, text=True)
+
+            # 2) commit: puede fallar si no hay cambios → no es error grave
+            commit = subprocess.run(
+                ["git", "commit", "-m", mensaje_commit],
+                cwd=REPO_DIR, capture_output=True, text=True
             )
-            print(f"✅ {' '.join(cmd[:2])}: {resultado.stdout.strip()}")
-        
-        print(f"🚀 Backup completado: {mensaje_commit}")
-        
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Error en git: {e.stderr}")
+            if commit.returncode == 0:
+                print(f"✅ Commit: {commit.stdout.strip()}")
+            else:
+                print(f"ℹ️  Commit omitido: {commit.stdout.strip()} | {commit.stderr.strip()}")
+
+            # 3) push
+            push = subprocess.run(
+                ["git", "push"],
+                cwd=REPO_DIR, capture_output=True, text=True
+            )
+            if push.returncode == 0:
+                print(f"🚀 Backup completado: {mensaje_commit}")
+            else:
+                print(f"❌ Push falló: {push.stderr.strip()}")
+                print("   ¿Están configuradas las credenciales (token/SSH) y el upstream?")
+
+    except FileNotFoundError:
+        print("❌ Git no está instalado o no está en el PATH")
     except Exception as e:
-        print(f"❌ Error inesperado: {e}")
+        print(f"❌ Error inesperado en shutdown: {e}")
 
-    pass
-
+    print("👋 Shutdown finalizado")
 
 # ── Esquemas Pydantic ──
 class MeaningIn(BaseModel):
